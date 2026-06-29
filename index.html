@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ทดสอบ API — ธนาคารขยะ TISRT</title>
+<style>
+  :root { --green:#16a34a; --green-d:#15803d; --bg:#f6f8f7; --line:#d1d5db; --ink:#1f2937; --mut:#6b7280; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: -apple-system, "Segoe UI", Roboto, "Noto Sans Thai", sans-serif;
+         background:var(--bg); color:var(--ink); line-height:1.5; padding:24px 16px; }
+  .wrap { max-width:680px; margin:0 auto; }
+  h1 { font-size:20px; margin:0 0 4px; color:var(--green-d); }
+  .sub { color:var(--mut); font-size:13px; margin:0 0 20px; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:12px; padding:18px; margin-bottom:16px; }
+  .card h2 { font-size:14px; margin:0 0 12px; color:var(--green-d); }
+  label { display:block; font-size:13px; color:var(--mut); margin:10px 0 4px; }
+  input { width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:8px; font-size:14px; font-family:inherit; }
+  input:focus { outline:none; border-color:var(--green); box-shadow:0 0 0 3px rgba(22,163,74,.12); }
+  .row { display:flex; gap:10px; }
+  .row > div { flex:1; }
+  button { margin-top:14px; width:100%; padding:11px; border:0; border-radius:8px; background:var(--green);
+           color:#fff; font-size:15px; font-weight:600; cursor:pointer; font-family:inherit; }
+  button:hover { background:var(--green-d); }
+  button:disabled { opacity:.55; cursor:default; }
+  button.alt { background:#fff; color:var(--green-d); border:1px solid var(--green); }
+  .hint { font-size:12px; color:var(--mut); margin-top:8px; }
+  .status { font-weight:600; font-size:14px; margin:0 0 8px; }
+  .ok  { color:var(--green-d); }
+  .err { color:#b91c1c; }
+  pre { background:#0f172a; color:#e2e8f0; padding:14px; border-radius:8px; overflow:auto;
+        font-size:12.5px; line-height:1.45; margin:0; white-space:pre-wrap; word-break:break-word; }
+  .meta { font-size:12px; color:var(--mut); margin-top:8px; }
+  code { background:#eef2f0; padding:1px 5px; border-radius:4px; font-size:12px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🧪 ทดสอบ API — ธนาคารขยะ TISRT</h1>
+  <p class="sub">ขั้นที่ 4: พิสูจน์ว่า login ผ่าน fetch (text/plain) ทำงาน — CORS + auth end-to-end</p>
+
+  <div class="card">
+    <h2>1) ปลายทาง Backend</h2>
+    <label>URL ที่ลงท้ายด้วย /exec</label>
+    <input id="apiUrl" placeholder="https://script.google.com/macros/s/AKfyc.../exec">
+    <p class="hint">วาง URL จาก Deploy → Web app (ไม่ต้องใส่ <code>?api=ping</code>)</p>
+  </div>
+
+  <div class="card">
+    <h2>2) เข้าสู่ระบบ</h2>
+    <div class="row">
+      <div>
+        <label>Username</label>
+        <input id="username" placeholder="เช่น admin" autocomplete="off">
+      </div>
+      <div>
+        <label>Password</label>
+        <input id="password" type="password" placeholder="••••••••">
+      </div>
+    </div>
+    <button id="btnLogin" onclick="doLogin()">เข้าสู่ระบบ</button>
+    <button id="btnAction" class="alt" onclick="doTestAction()" disabled>
+      ทดสอบ action หลัง login (getMyMenu) — พิสูจน์ token
+    </button>
+    <p class="hint">ปุ่มที่สองจะกดได้หลัง login สำเร็จ เพื่อยืนยันว่า session token ใช้ผ่าน API ได้จริง</p>
+  </div>
+
+  <div class="card">
+    <h2>3) ผลลัพธ์ดิบ</h2>
+    <p id="status" class="status">ยังไม่ได้ทดสอบ</p>
+    <pre id="output">— รอผลลัพธ์ —</pre>
+    <p id="meta" class="meta"></p>
+  </div>
+</div>
+
+<script>
+  // เก็บ token จาก login ไว้ใช้กับ action ถัดไป (ในหน่วยความจำเท่านั้น)
+  var APP = { token: null, user: null };
+
+  // ── ตัวแทน google.script.run.processAction(...) — คืน Promise ──
+  async function callServer(action, data) {
+    var url = document.getElementById('apiUrl').value.trim();
+    if (!url) throw new Error('ยังไม่ได้กรอก URL /exec');
+
+    var body = Object.assign({ action: action }, data || {});
+    if (APP.token) body._token = APP.token;            // แนบ session token อัตโนมัติ
+
+    var res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },  // เลี่ยง CORS preflight
+      body: JSON.stringify(body),
+      redirect: 'follow'                                // /exec จะ 302 ไป googleusercontent
+    });
+
+    var raw = await res.text();
+    var json = null, parseErr = null;
+    try { json = JSON.parse(raw); } catch (e) { parseErr = e; }
+    return { httpStatus: res.status, raw: raw, json: json, parseErr: parseErr };
+  }
+
+  function show(ok, label, result, ms) {
+    var st = document.getElementById('status');
+    st.className = 'status ' + (ok ? 'ok' : 'err');
+    st.textContent = (ok ? '✅ ' : '❌ ') + label;
+
+    var out = document.getElementById('output');
+    if (result.json) {
+      out.textContent = JSON.stringify(result.json, null, 2);
+    } else {
+      // ไม่ใช่ JSON — มักแปลว่าได้หน้า HTML/หน้า error กลับมา
+      out.textContent = '⚠️ ตอบกลับไม่ใช่ JSON (อาจเป็นหน้า HTML หรือหน้าขอสิทธิ์)\n\n'
+                      + result.raw.slice(0, 1200);
+    }
+    document.getElementById('meta').textContent =
+      'HTTP ' + result.httpStatus + ' · ใช้เวลา ' + ms + ' ms'
+      + (result.parseErr ? ' · parse JSON ไม่ได้' : '');
+  }
+
+  async function doLogin() {
+    var btn = document.getElementById('btnLogin');
+    btn.disabled = true; btn.textContent = 'กำลังเข้าสู่ระบบ...';
+    var t0 = performance.now();
+    try {
+      var u = document.getElementById('username').value.trim();
+      var p = document.getElementById('password').value;
+      var r = await callServer('login', { username: u, password: p });
+      var ms = Math.round(performance.now() - t0);
+
+      var success = r.json && r.json.success === true && r.json.token;
+      if (success) {
+        APP.token = r.json.token;
+        APP.user  = r.json.user || null;
+        document.getElementById('btnAction').disabled = false;
+        show(true, 'login สำเร็จ — ได้ token แล้ว', r, ms);
+      } else {
+        APP.token = null;
+        document.getElementById('btnAction').disabled = true;
+        var msg = (r.json && r.json.message) ? r.json.message
+                : (r.json ? 'login ไม่สำเร็จ' : 'ตอบกลับไม่ใช่ JSON');
+        show(false, msg, r, ms);
+      }
+    } catch (e) {
+      // มักเป็น CORS / เน็ตเวิร์ก / URL ผิด
+      document.getElementById('status').className = 'status err';
+      document.getElementById('status').textContent = '❌ เรียกไม่สำเร็จ: ' + e.message;
+      document.getElementById('output').textContent =
+        'สาเหตุที่พบบ่อย:\n'
+      + '• URL /exec ผิด หรือยังไม่ deploy เวอร์ชันใหม่\n'
+      + '• Deploy ไม่ได้ตั้ง Who has access = Anyone\n'
+      + '• ถูกบล็อกด้วย CORS (ตรวจว่า header เป็น text/plain จริง)\n\n'
+      + String(e);
+      document.getElementById('meta').textContent = '';
+    } finally {
+      btn.disabled = false; btn.textContent = 'เข้าสู่ระบบ';
+    }
+  }
+
+  async function doTestAction() {
+    var btn = document.getElementById('btnAction');
+    btn.disabled = true; btn.textContent = 'กำลังเรียก getMyMenu...';
+    var t0 = performance.now();
+    try {
+      var r = await callServer('getMyMenu', {});
+      var ms = Math.round(performance.now() - t0);
+      var ok = r.json && r.json.success === true;
+      show(ok, ok ? 'getMyMenu สำเร็จ — token ใช้ได้จริง' : (r.json && r.json.message || 'เรียกไม่สำเร็จ'), r, ms);
+    } catch (e) {
+      document.getElementById('status').className = 'status err';
+      document.getElementById('status').textContent = '❌ ' + e.message;
+    } finally {
+      btn.disabled = false; btn.textContent = 'ทดสอบ action หลัง login (getMyMenu) — พิสูจน์ token';
+    }
+  }
+</script>
+</body>
+</html>
