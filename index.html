@@ -530,7 +530,7 @@ var google = { script: { run: (function () {
 
 function applyBootstrap(d) {
   try {
-    if (!d) return;
+    if (!d) return; if (d.data) d = d.data;
     window.PROFILE = d.profile || window.PROFILE || {};
     window.FORM_OPTIONS = d.formOptions || window.FORM_OPTIONS || { grades: [], rooms: [] };
     var name = d.communityName || '';
