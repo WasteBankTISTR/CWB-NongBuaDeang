@@ -44,6 +44,10 @@
     <label>URL ที่ลงท้ายด้วย /exec</label>
     <input id="apiUrl" placeholder="https://script.google.com/macros/s/AKfyc.../exec">
     <p class="hint">วาง URL จาก Deploy → Web app (ไม่ต้องใส่ <code>?api=ping</code>)</p>
+    <button id="btnBootstrap" class="alt" onclick="doBootstrap()">
+      ทดสอบ getBootstrap (ไม่ต้อง login)
+    </button>
+    <p class="hint">ตรวจว่า backend คืน version / communityName / profile / formOptions ได้</p>
   </div>
 
   <div class="card">
@@ -114,6 +118,24 @@
     document.getElementById('meta').textContent =
       'HTTP ' + result.httpStatus + ' · ใช้เวลา ' + ms + ' ms'
       + (result.parseErr ? ' · parse JSON ไม่ได้' : '');
+  }
+
+  async function doBootstrap() {
+    var btn = document.getElementById('btnBootstrap');
+    btn.disabled = true; btn.textContent = 'กำลังเรียก getBootstrap...';
+    var t0 = performance.now();
+    try {
+      var r = await callServer('getBootstrap', {});   // ไม่ต้องมี token
+      var ms = Math.round(performance.now() - t0);
+      var ok = r.json && r.json.success === true && r.json.data;
+      show(ok, ok ? 'getBootstrap สำเร็จ — backend คืน config ครบ' : (r.json && r.json.message || 'เรียกไม่สำเร็จ'), r, ms);
+    } catch (e) {
+      document.getElementById('status').className = 'status err';
+      document.getElementById('status').textContent = '❌ เรียกไม่สำเร็จ: ' + e.message;
+      document.getElementById('output').textContent = String(e);
+    } finally {
+      btn.disabled = false; btn.textContent = 'ทดสอบ getBootstrap (ไม่ต้อง login)';
+    }
   }
 
   async function doLogin() {
