@@ -1281,6 +1281,7 @@ function showHistory(memberId) {
   callServer('getMemberHistory', { memberId: memberId, limit: 30, includeSummary: true }, function(r) {
     if (!r.success) { showToast(r.message, 'error'); return; }
     var s = r.summary;
+    var canEdit = !!r.canEdit;
     var html = '<div class="balance-card"><div class="balance-name">' + esc(s?s.fullName:'') + '</div>' +
       '<div class="balance-info">' + PROFILE.idLabel + ' ' + (s?esc(s.houseNo):'') + ' | ' + (s?esc(s.zone):'') + '</div>' +
       '<div class="balance-amount">฿' + (s?s.currentBalance:0).toLocaleString(undefined,{minimumFractionDigits:2}) + '</div>' +
@@ -1289,19 +1290,43 @@ function showHistory(memberId) {
     if (r.data.length === 0) { html += '<div style="padding:20px;text-align:center;color:#999">ยังไม่มีประวัติ</div>'; }
     else {
       r.data.forEach(function(t) {
-        var icon = t.type === 'ฝาก' ? '💰' : '💸';
-        var cls = t.type === 'ฝาก' ? 'positive' : 'negative';
-        var sign = t.type === 'ฝาก' ? '+' : '-';
-        var pts = t.pointsEarned > 0 ? ' (+' + t.pointsEarned + ' แต้ม)' : '';
+        var amt = t.amount || 0;
+        var isDeposit = t.type === 'ฝาก';
+        var isReversal = isDeposit && amt < 0;            // แถวยกเลิกของเดิม
+        var edited = (t.note || '').indexOf('[แก้แล้ว]') !== -1;
+        var icon = isReversal ? '↩️' : (isDeposit ? '💰' : '💸');
+        var positive = isDeposit && amt >= 0;
+        var cls = positive ? 'positive' : 'negative';
+        var sign = positive ? '+' : '−';
+        var pts = t.pointsEarned ? ' (' + (t.pointsEarned > 0 ? '+' : '') + t.pointsEarned + ' แต้ม)' : '';
+        var tag = edited ? ' <span style="color:#f57c00">• แก้แล้ว</span>' : (isReversal ? ' <span style="color:#999">• ยกเลิก</span>' : '');
+        var btn = (canEdit && t.editable)
+          ? '<button class="btn-refresh" style="margin-left:8px" title="แก้น้ำหนัก" onclick="editWeight(\'' + t.transId + '\',\'' + memberId + '\',' + (t.weight||0) + ')">✏️</button>'
+          : '';
         html += '<div class="list-item"><div class="list-icon">' + icon + '</div><div class="list-content">' +
-          '<div class="list-title">' + t.type + (t.wasteType !== '-' ? ': ' + esc(t.wasteType) : '') + '</div>' +
+          '<div class="list-title">' + t.type + (t.wasteType !== '-' ? ': ' + esc(t.wasteType) : '') + tag + '</div>' +
           '<div class="list-subtitle">' + t.createdAt + pts + '</div></div>' +
-          '<div class="list-value ' + cls + '">' + sign + '฿' + t.amount.toLocaleString() + '</div></div>';
+          '<div class="list-value ' + cls + '">' + sign + '฿' + Math.abs(amt).toLocaleString() + '</div>' + btn + '</div>';
       });
     }
     html += '</div>';
     document.getElementById('historyDisplay').innerHTML = html;
     document.getElementById('historyDisplay').classList.remove('hidden');
+  });
+}
+
+// [tx_edit] แก้น้ำหนักรายการฝาก (เฉพาะผู้มีสิทธิ์ tx_edit — server ตรวจซ้ำอีกชั้น)
+function editWeight(transId, memberId, oldWeight) {
+  var v = prompt('แก้น้ำหนักรายการนี้\nน้ำหนักเดิม: ' + oldWeight + ' กก.\n\nใส่น้ำหนักใหม่ (กก.):', oldWeight);
+  if (v === null) return;
+  var w = parseFloat(v);
+  if (!w || w <= 0) { showToast('น้ำหนักไม่ถูกต้อง', 'error'); return; }
+  if (w === parseFloat(oldWeight)) { showToast('น้ำหนักเท่ากับของเดิม', 'error'); return; }
+  if (!confirm('ยืนยันแก้น้ำหนัก ' + oldWeight + ' → ' + w + ' กก.?\nระบบจะยกเลิกรายการเดิมและออกรายการใหม่ให้')) return;
+  callServer('correctDepositWeight', { transId: transId, newWeight: w }, function(r) {
+    if (!r || !r.success) { showToast((r && r.message) || 'แก้ไม่สำเร็จ', 'error'); return; }
+    showToast(r.message || 'แก้น้ำหนักสำเร็จ', 'success');
+    showHistory(memberId);
   });
 }
 
