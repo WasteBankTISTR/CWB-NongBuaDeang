@@ -559,7 +559,7 @@ function applyBootstrap(d) {
 }
 
 function bootstrapApp() {
-  apiFetch('getBootstrap', {}).then(applyBootstrap).then(restoreSession).catch(function (e) { console.error('bootstrap failed', e); });
+  apiFetch('getBootstrap', {}).then(applyBootstrap).catch(function (e) { console.error('bootstrap failed', e); });
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bootstrapApp);
 else bootstrapApp();
@@ -792,6 +792,7 @@ function showPage(pageId) {
 // LOGIN / LOGOUT
 // ═══════════════════════════════════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', function() {
+  restoreSession();   // [SESSION PERSIST] กู้ session ทันที ไม่รอ bootstrap (กันวูบหน้า login)
   document.getElementById('loginPassword').addEventListener('keydown', function(e) {
     if (e.key === 'Enter') doLogin(document.querySelector('#loginScreen .btn'));
   });
