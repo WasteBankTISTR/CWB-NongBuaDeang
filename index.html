@@ -792,7 +792,15 @@ function showPage(pageId) {
 // LOGIN / LOGOUT
 // ═══════════════════════════════════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', function() {
-  restoreSession();   // [SESSION PERSIST] กู้ session ทันที ไม่รอ bootstrap (กันวูบหน้า login)
+  if (!restoreSession()) {   // [SESSION PERSIST] ไม่มี session → เตรียมหน้า login
+    try {                    // [LOGIN UX] จำ username ล่าสุด เติมให้อัตโนมัติ
+      var lastU = localStorage.getItem('wbtisrt_last_user');
+      if (lastU) {
+        var uEl = document.getElementById('loginUsername');
+        if (uEl) { uEl.value = lastU; var pEl = document.getElementById('loginPassword'); if (pEl) pEl.focus(); }
+      }
+    } catch(e) {}
+  }
   document.getElementById('loginPassword').addEventListener('keydown', function(e) {
     if (e.key === 'Enter') doLogin(document.querySelector('#loginScreen .btn'));
   });
@@ -847,6 +855,7 @@ function doLogin(btn) {
           APP.user = result.user;
           APP.token = result.token;   // [SEC v1103] เก็บ session token
           saveSession();              // [SESSION PERSIST] เก็บลง localStorage
+          try { localStorage.setItem('wbtisrt_last_user', username); } catch(e) {}  // [LOGIN UX] จำ username
           enterApp(result.user, true);
         } else {
           showToast((result && result.message) || 'เข้าสู่ระบบไม่สำเร็จ', 'error');
