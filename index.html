@@ -1040,13 +1040,14 @@ function saveRolePerms(btn) {
 // LOAD INITIAL DATA
 // ═══════════════════════════════════════════════════════════════════════
 function loadInitialData() {
-  callServer('getAllPrices', {}, function(r) { if (r.success) APP.prices = r.data; });
-  callServer('getZones', {}, function(r) {
-    if (r.success) APP.zones = r.data;
-    callServer('getMyScopeFilters', {}, function(r2) {
-      APP.scopeFilters = (r2 && r2.success) ? r2.data : { scoped: false };
-      injectSearchFilters();
-    });
+  // [PERF] รวมเหลือ request เดียว — prices + zones + scopeFilters มาพร้อมกัน
+  callServer('getInitialData', {}, function(r) {
+    if (!r || !r.success) return;
+    var d = r.data || {};
+    if (d.prices) APP.prices = d.prices;
+    if (d.zones)  APP.zones = d.zones;
+    APP.scopeFilters = d.scopeFilters || { scoped: false };
+    injectSearchFilters();
   });
 }
 
