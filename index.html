@@ -559,7 +559,7 @@ function applyBootstrap(d) {
 }
 
 function bootstrapApp() {
-  apiFetch('getBootstrap', {}).then(applyBootstrap).catch(function (e) { console.error('bootstrap failed', e); });
+  apiFetch('getBootstrap', {}).then(applyBootstrap).then(restoreSession).catch(function (e) { console.error('bootstrap failed', e); });
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bootstrapApp);
 else bootstrapApp();
@@ -797,6 +797,38 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 });
 
+// [SESSION PERSIST] เข้าหน้าแอปหลัก — ใช้ร่วมกันทั้ง login ใหม่ และกู้ session
+function enterApp(user, isFreshLogin) {
+  document.getElementById('loginScreen').classList.add('hidden');
+  document.getElementById('mainApp').classList.remove('hidden');
+  document.getElementById('headerUserName').textContent = user.displayName;
+  document.getElementById('headerUserRole').textContent = getRoleLabel(user.role);
+  buildMenu();
+  if (user.role !== 'member') loadInitialData();
+  if (isFreshLogin && user.forceChangePwd) { showChangePasswordModal(true); }
+}
+
+// [SESSION PERSIST] เก็บ/อ่าน/ล้าง session ใน localStorage
+var SESSION_KEY = 'wbtisrt_session';
+function saveSession() {
+  try { localStorage.setItem(SESSION_KEY, JSON.stringify({ token: APP.token, user: APP.user })); } catch(e) {}
+}
+function clearSession() {
+  try { localStorage.removeItem(SESSION_KEY); } catch(e) {}
+}
+function restoreSession() {
+  try {
+    var raw = localStorage.getItem(SESSION_KEY);
+    if (!raw) return false;
+    var s = JSON.parse(raw);
+    if (!s || !s.token || !s.user) return false;
+    APP.token = s.token;
+    APP.user = s.user;
+    enterApp(s.user, false);   // ไม่เด้ง forceChangePwd ตอนกู้ session
+    return true;
+  } catch(e) { clearSession(); return false; }
+}
+
 function doLogin(btn) {
   try {
     var username = document.getElementById('loginUsername').value.trim();
@@ -813,13 +845,8 @@ function doLogin(btn) {
         if (result && result.success) {
           APP.user = result.user;
           APP.token = result.token;   // [SEC v1103] เก็บ session token
-          document.getElementById('loginScreen').classList.add('hidden');
-          document.getElementById('mainApp').classList.remove('hidden');
-          document.getElementById('headerUserName').textContent = result.user.displayName;
-          document.getElementById('headerUserRole').textContent = getRoleLabel(result.user.role);
-          buildMenu();
-          if (result.user.role !== 'member') loadInitialData();
-          if (result.user.forceChangePwd) { showChangePasswordModal(true); }
+          saveSession();              // [SESSION PERSIST] เก็บลง localStorage
+          enterApp(result.user, true);
         } else {
           showToast((result && result.message) || 'เข้าสู่ระบบไม่สำเร็จ', 'error');
         }
@@ -844,6 +871,7 @@ function logout() {
   }
   APP.user = null;
   APP.token = null;
+  clearSession();             // [SESSION PERSIST] ล้าง localStorage
   document.getElementById('mainApp').classList.add('hidden');
   document.getElementById('loginScreen').classList.remove('hidden');
   document.getElementById('loginPassword').value = '';
@@ -1285,7 +1313,7 @@ function selectDepositMember(memberId) {
 function addDepositItem() {
   var idx = APP.depositItems.length;
   APP.depositItems.push({ wasteName: '', weight: 0 });
-  var options = APP.prices.map(function(p) { return '<option value="' + esc(p.name) + '">' + esc(p.name) + ' (' + esc(p.category) + ') - ฿' + p.price + '/' + esc(p.unit) + '</option>'; }).join('');
+  var options = APP.prices.filter(function(p) { return p.price > 0; }).map(function(p) { return '<option value="' + esc(p.name) + '">' + esc(p.name) + ' (' + esc(p.category) + ') - ฿' + p.price + '/' + esc(p.unit) + '</option>'; }).join('');
   var html = '<div class="deposit-item" id="depItem' + idx + '">' +
     '<div class="deposit-item-header"><span class="deposit-item-title">รายการที่ ' + (idx+1) + '</span><span class="deposit-item-remove" onclick="removeDepositItem(' + idx + ')">✕</span></div>' +
     '<div class="form-group"><select class="form-select" onchange="APP.depositItems[' + idx + '].wasteName=this.value;updateDepositSummary()"><option value="">-- เลือกประเภทขยะ --</option>' + options + '</select></div>' +
@@ -1419,7 +1447,7 @@ function loadPrices() {
     if (!r.success) return;
     APP.prices = r.data;
     var html = '', currentCat = '';
-    r.data.forEach(function(p) {
+    r.data.filter(function(p) { return p.price > 0; }).forEach(function(p) {
       if (p.category !== currentCat) { currentCat = p.category; html += '<div class="category-header">' + esc(p.category) + '</div>'; }
       html += '<div class="price-item"><span class="price-name">' + esc(p.name) + '</span><span class="price-value">฿' + p.price.toLocaleString() + '<span class="price-unit">/' + esc(p.unit) + '</span></span></div>';
     });
