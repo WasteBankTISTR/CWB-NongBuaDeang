@@ -187,8 +187,10 @@
         <button class="back-btn" onclick="showPage('homePage')">← กลับ</button>
         <div class="card">
           <div class="card-title" style="justify-content:space-between"><span>📝 ลงทะเบียน<span class="cfg-subjectWord"></span>ใหม่</span><button onclick="refreshRegister()" class="btn-refresh">🔄</button></div>
-          <div class="form-group"><label class="form-label"><span class="cfg-idLabel"></span></label><input type="text" id="regHouseNo" class="form-input" placeholder="" data-ph-key="idPlaceholder"></div>
-          <div class="cond" data-if="!enableClassNo"><div class="form-group"><label class="form-label">เลขสมาชิก</label><div style="display:flex;gap:8px"><input type="text" id="regMemberNo" class="form-input" placeholder="เว้นว่าง = เลขถัดไปอัตโนมัติ"><button type="button" onclick="fetchNextMemberNo()" style="padding:0 16px;border:none;border-radius:12px;background:var(--secondary);color:#fff;font-weight:700;white-space:nowrap;cursor:pointer;font-family:inherit">เลขถัดไป</button></div></div></div>
+          <div class="form-row">
+            <div class="cond" data-if="!enableClassNo"><div class="form-group"><label class="form-label">เลขสมาชิก</label><div style="display:flex;gap:6px"><input type="text" id="regMemberNo" class="form-input" placeholder="อัตโนมัติ"><button type="button" onclick="fetchNextMemberNo()" style="padding:0 12px;border:none;border-radius:12px;background:var(--secondary);color:#fff;font-weight:700;white-space:nowrap;cursor:pointer;font-family:inherit">เลขถัดไป</button></div></div></div>
+            <div class="form-group"><label class="form-label"><span class="cfg-idLabel"></span></label><input type="text" id="regHouseNo" class="form-input" placeholder="" data-ph-key="idPlaceholder"></div>
+          </div>
           <div class="form-row">
             <div class="form-group"><label class="form-label">คำนำหน้า</label><select id="regPrefix" class="form-select"><option value="นาย">นาย</option><option value="นาง">นาง</option><option value="นางสาว">นางสาว</option><option value="ด.ช.">ด.ช.</option><option value="ด.ญ.">ด.ญ.</option></select></div>
             <div class="form-group"><label class="form-label"><span class="cfg-groupLabel"></span></label><select id="regZone" class="form-select"></select></div>
