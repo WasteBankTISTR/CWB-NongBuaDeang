@@ -1725,22 +1725,55 @@ function loadStock() {
 }
 
 function renderStock(data) {
+  var metric = APP.stockSort || 'value';
+  var sumEl = document.getElementById('stockSummary');
   if (!data || data.length === 0) {
+    sumEl.innerHTML = '';
     document.getElementById('stockList').innerHTML = '<div style="padding:20px;text-align:center;color:#999">ยังไม่มีสต็อก</div>';
     return;
   }
   var totalW = 0, totalV = 0;
   data.forEach(function(s) { totalW += s.totalWeight; totalV += s.totalValue; });
-  document.getElementById('stockSummary').innerHTML =
-    '<div class="stats-grid"><div class="stat-card"><div class="stat-value">' + totalW.toLocaleString(undefined,{maximumFractionDigits:1}) + ' กก.</div><div class="stat-label">น้ำหนักรวม</div></div>' +
-    '<div class="stat-card"><div class="stat-value">฿' + totalV.toLocaleString(undefined,{maximumFractionDigits:0}) + '</div><div class="stat-label">มูลค่ารวม</div></div></div>';
-  var html = data.map(function(s) {
-    return '<div class="list-item"><div class="list-content"><div class="list-title">' + esc(s.wasteType) + '</div>' +
-      '<div class="list-subtitle">' + esc(s.category) + '</div></div>' +
-      '<div class="list-value">' + s.totalWeight.toLocaleString() + ' กก.<br><span style="font-size:12px;color:#999">฿' + s.totalValue.toLocaleString() + '</span></div></div>';
+  var btn = function(active) { return active ? 'background:#06c755;color:#fff' : 'background:#e8eaed;color:#444'; };
+  sumEl.innerHTML =
+    '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">' +
+      '<div style="background:#fff;border:1px solid #eee;border-radius:12px;padding:10px;text-align:center"><div style="font-size:18px;font-weight:700;color:#08533f">' + totalW.toLocaleString(undefined, { maximumFractionDigits: 1 }) + '</div><div style="font-size:12px;color:#888">น้ำหนักรวม (กก.)</div></div>' +
+      '<div style="background:#fff;border:1px solid #eee;border-radius:12px;padding:10px;text-align:center"><div style="font-size:18px;font-weight:700;color:#08533f">฿' + totalV.toLocaleString(undefined, { maximumFractionDigits: 0 }) + '</div><div style="font-size:12px;color:#888">มูลค่ารวม</div></div>' +
+      '<div style="background:#fff;border:1px solid #eee;border-radius:12px;padding:10px;text-align:center"><div style="font-size:18px;font-weight:700;color:#08533f">' + data.length + '</div><div style="font-size:12px;color:#888">จำนวนประเภท</div></div>' +
+    '</div>' +
+    '<div style="display:flex;align-items:center;gap:8px;margin-top:12px"><span style="font-size:13px;color:#666">เรียงตาม</span>' +
+      '<button onclick="sortStock(\'value\')" style="border:none;border-radius:9px;padding:6px 14px;font-family:inherit;font-size:13px;cursor:pointer;' + btn(metric === 'value') + '">มูลค่า</button>' +
+      '<button onclick="sortStock(\'weight\')" style="border:none;border-radius:9px;padding:6px 14px;font-family:inherit;font-size:13px;cursor:pointer;' + btn(metric === 'weight') + '">น้ำหนัก</button>' +
+    '</div>';
+  var arr = data.slice().sort(function(a, b) { return metric === 'weight' ? b.totalWeight - a.totalWeight : b.totalValue - a.totalValue; });
+  var max = 0;
+  arr.forEach(function(s) { var v = metric === 'weight' ? s.totalWeight : s.totalValue; if (v > max) max = v; });
+  var html = arr.map(function(s) {
+    var v = metric === 'weight' ? s.totalWeight : s.totalValue;
+    var pct = max > 0 ? Math.max(4, Math.round(v / max * 100)) : 0;
+    var big = metric === 'weight' ? (s.totalWeight.toLocaleString(undefined, { maximumFractionDigits: 2 }) + ' กก.') : ('฿' + s.totalValue.toLocaleString());
+    var cc = _stkCatColor(s.category);
+    return '<div style="background:#fff;border:1px solid #eee;border-radius:12px;padding:11px 12px;margin-bottom:10px">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:7px">' +
+        '<div style="display:flex;align-items:center;gap:8px;min-width:0"><span style="background:' + cc[0] + ';color:' + cc[1] + ';font-size:12px;padding:2px 9px;border-radius:7px;white-space:nowrap">' + esc(s.category || '-') + '</span><span style="font-size:15px;font-weight:700;color:#1a1a1a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(s.wasteType) + '</span></div>' +
+        '<span style="font-size:15px;font-weight:700;color:#08533f;white-space:nowrap">' + big + '</span>' +
+      '</div>' +
+      '<div style="height:7px;background:#eef1f0;border-radius:5px;overflow:hidden"><div style="height:100%;width:' + pct + '%;background:#06c755;border-radius:5px"></div></div>' +
+      '<div style="display:flex;gap:14px;font-size:13px;color:#888;margin-top:7px"><span>น้ำหนัก ' + s.totalWeight.toLocaleString(undefined, { maximumFractionDigits: 2 }) + ' กก.</span><span>มูลค่า ฿' + s.totalValue.toLocaleString() + '</span></div>' +
+    '</div>';
   }).join('');
   document.getElementById('stockList').innerHTML = html;
 }
+// จับคู่สี badge หมวดหมู่ — มีชุดสำเร็จ + สำรองแบบ hash สำหรับหมวดใหม่
+function _stkCatColor(cat) {
+  var map = { 'โลหะ': ['#e8f0fb', '#185fa5'], 'รีไซเคิล': ['#e8f9ef', '#0f6e56'], 'แก้ว': ['#fbeef0', '#993556'], 'กระดาษ': ['#faf0da', '#854f0b'], 'พลาสติก': ['#eeedfe', '#3c3489'] };
+  cat = String(cat || '');
+  if (map[cat]) return map[cat];
+  var palette = [['#e8f0fb', '#185fa5'], ['#e8f9ef', '#0f6e56'], ['#fbeef0', '#993556'], ['#faf0da', '#854f0b'], ['#eeedfe', '#3c3489'], ['#fcebeb', '#a32d2d']];
+  var h = 0; for (var i = 0; i < cat.length; i++) h = (h * 31 + cat.charCodeAt(i)) >>> 0;
+  return palette[h % palette.length];
+}
+function sortStock(metric) { APP.stockSort = metric; filterStock(); }
 
 function filterStock() {
   var q = document.getElementById('stockSearch').value.toLowerCase();
