@@ -679,7 +679,7 @@ function dsLoad() {
   document.getElementById('dsDateLabel').textContent = dsFmtThai(APP.dsDate);
   document.getElementById('dsContent').innerHTML = '<div style="padding:20px;text-align:center;color:#999">⏳ กำลังโหลด...</div>';
   callServer('getDepositSummary', { date: APP.dsDate }, function(r) {
-    if (!r.success) { document.getElementById('dsContent').innerHTML = '<div style="padding:20px;color:#c00">โหลดไม่สำเร็จ</div>'; return; }
+    if (!r.success) { document.getElementById('dsContent').innerHTML = '<div style="padding:20px;color:#c00">โหลดไม่สำเร็จ' + (r.message ? '<br><span style="font-size:12px;color:#999">' + esc(r.message) + '</span>' : '') + '</div>'; return; }
     dsRender(r.data);
   });
 }
@@ -795,7 +795,7 @@ function wsLoad() {
   document.getElementById('wsDateLabel').textContent = dsFmtThai(APP.wsDate);
   document.getElementById('wsContent').innerHTML = '<div style="padding:20px;text-align:center;color:#999">⏳ กำลังโหลด...</div>';
   callServer('getWithdrawSummary', { date: APP.wsDate }, function(r) {
-    if (!r.success) { document.getElementById('wsContent').innerHTML = '<div style="padding:20px;color:#c00">โหลดไม่สำเร็จ</div>'; return; }
+    if (!r.success) { document.getElementById('wsContent').innerHTML = '<div style="padding:20px;color:#c00">โหลดไม่สำเร็จ' + (r.message ? '<br><span style="font-size:12px;color:#999">' + esc(r.message) + '</span>' : '') + '</div>'; return; }
     wsRender(r.data);
   });
 }
