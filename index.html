@@ -188,6 +188,7 @@
         <div class="card">
           <div class="card-title" style="justify-content:space-between"><span>📝 ลงทะเบียน<span class="cfg-subjectWord"></span>ใหม่</span><button onclick="refreshRegister()" class="btn-refresh">🔄</button></div>
           <div class="form-group"><label class="form-label"><span class="cfg-idLabel"></span></label><input type="text" id="regHouseNo" class="form-input" placeholder="" data-ph-key="idPlaceholder"></div>
+          <div class="cond" data-if="!enableClassNo"><div class="form-group"><label class="form-label">เลขสมาชิก</label><div style="display:flex;gap:8px"><input type="text" id="regMemberNo" class="form-input" placeholder="เว้นว่าง = เลขถัดไปอัตโนมัติ"><button type="button" onclick="fetchNextMemberNo()" style="padding:0 16px;border:none;border-radius:12px;background:var(--secondary);color:#fff;font-weight:700;white-space:nowrap;cursor:pointer;font-family:inherit">เลขถัดไป</button></div></div></div>
           <div class="form-row">
             <div class="form-group"><label class="form-label">คำนำหน้า</label><select id="regPrefix" class="form-select"><option value="นาย">นาย</option><option value="นาง">นาง</option><option value="นางสาว">นางสาว</option><option value="ด.ช.">ด.ช.</option><option value="ด.ญ.">ด.ญ.</option></select></div>
             <div class="form-group"><label class="form-label"><span class="cfg-groupLabel"></span></label><select id="regZone" class="form-select"></select></div>
@@ -551,7 +552,8 @@ function applyBootstrap(d) {
     });
     Array.prototype.forEach.call(document.querySelectorAll('[data-if]'), function (e) {
       var spec = e.getAttribute('data-if'), keep;
-      if (spec.indexOf('mode=') === 0) keep = (PROFILE.mode === spec.slice(5));
+      if (spec.charAt(0) === '!') keep = !PROFILE[spec.slice(1)];          // [MEMBER_NO] negation: !enableClassNo
+      else if (spec.indexOf('mode=') === 0) keep = (PROFILE.mode === spec.slice(5));
       else keep = !!PROFILE[spec];
       if (!keep && e.parentNode) e.parentNode.removeChild(e);
     });
@@ -1068,6 +1070,22 @@ function loadZones() {
   var FO = (typeof FORM_OPTIONS !== 'undefined') ? FORM_OPTIONS : { grades: [], rooms: [] };
   _fillSelect('regGrade', FO.grades, '-- เลือกชั้น --');
   _fillSelect('regRoom',  FO.rooms,  '-- เลือกห้อง --');
+  // [MEMBER_NO] โหมดชุมชน/สำนักงาน: เติมเลขสมาชิกถัดไปให้อัตโนมัติเมื่อเปิดหน้า
+  var _mn = document.getElementById('regMemberNo');
+  if (_mn && !_mn.value) fetchNextMemberNo(true);
+}
+
+// [MEMBER_NO v1.9.4] ดึงเลขสมาชิกถัดไป (max+1) มาเติมในช่อง regMemberNo ; silent=true = ไม่ขึ้น toast
+function fetchNextMemberNo(silent) {
+  callServer('getNextMemberNo', {}, function(r) {
+    if (r && r.success && r.data) {
+      var el = document.getElementById('regMemberNo');
+      if (el) el.value = r.data.nextNo;
+      if (!silent) showToast('เลขสมาชิกถัดไป: ' + r.data.nextNo, 'success');
+    } else if (!silent) {
+      showToast((r && r.message) || 'ดึงเลขถัดไปไม่สำเร็จ', 'error');
+    }
+  });
 }
 function _fillSelect(id, arr, placeholder) {
   var el = document.getElementById(id);
@@ -1236,7 +1254,7 @@ function createMember(btn) {
     idCardLast4: g('regIdCard'),
     address: g('regAddress'),
     // [v1.3] ฟิลด์เสริมตามโหมด (มีเฉพาะบางโหมด — g() คืน '' ถ้าไม่มีช่อง)
-    nickname: g('regNickname'), classNo: g('regClassNo'),
+    nickname: g('regNickname'), classNo: g('regClassNo'), memberNo: g('regMemberNo'),
     grade: g('regGrade'), room: g('regRoom'),
     tambon: g('regTambon'), amphoe: g('regAmphoe'),
     province: g('regProvince'), postcode: g('regPostcode')
@@ -1249,7 +1267,8 @@ function createMember(btn) {
     setTimeout(function() { btn.disabled = false; }, 30000);
     if (r.success) {
       showToast(r.message, 'success');
-      ['regHouseNo','regFirstName','regLastName','regPhone','regIdCard','regAddress','regNickname','regClassNo','regGrade','regRoom','regTambon','regAmphoe','regProvince','regPostcode'].forEach(function(id) { var el = document.getElementById(id); if (el) el.value = ''; });
+      ['regHouseNo','regMemberNo','regFirstName','regLastName','regPhone','regIdCard','regAddress','regNickname','regClassNo','regGrade','regRoom','regTambon','regAmphoe','regProvince','regPostcode'].forEach(function(id) { var el = document.getElementById(id); if (el) el.value = ''; });
+      if (document.getElementById('regMemberNo')) fetchNextMemberNo(true);   // [MEMBER_NO] เติมเลขถัดไปให้คนต่อไป
     } else { showToast(r.message, 'error'); btn.disabled = false; }
   });
 }
