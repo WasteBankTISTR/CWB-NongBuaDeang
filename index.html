@@ -202,7 +202,7 @@
           <div class="cond" data-if="enableNickname"><div class="form-group"><label class="form-label">ชื่อเล่น</label><input type="text" id="regNickname" class="form-input" placeholder="ชื่อเล่น"></div></div>
           <div class="cond" data-if="enableClassNo"><div class="form-group"><label class="form-label">เลขที่</label><input type="text" id="regClassNo" class="form-input" placeholder="เลขที่"></div></div>
           <div class="cond" data-if="mode=school"><div class="form-row"><div class="form-group"><label class="form-label">ชั้น</label><select id="regGrade" class="form-select"></select></div><div class="form-group"><label class="form-label">ห้อง</label><select id="regRoom" class="form-select"></select></div></div></div>
-          <div class="cond" data-if="mode=community"><div class="form-row"><div class="form-group"><label class="form-label">ตำบล</label><input type="text" id="regTambon" class="form-input" placeholder="ตำบล"></div><div class="form-group"><label class="form-label">อำเภอ</label><input type="text" id="regAmphoe" class="form-input" placeholder="อำเภอ"></div></div><div class="form-row"><div class="form-group"><label class="form-label">จังหวัด</label><input type="text" id="regProvince" class="form-input" placeholder="จังหวัด"></div><div class="form-group"><label class="form-label">รหัสไปรษณีย์</label><input type="text" id="regPostcode" class="form-input" maxlength="5" placeholder="10240"></div></div></div>
+          <div><div class="form-row"><div class="form-group"><label class="form-label">รหัสไปรษณีย์</label><input type="text" id="regPostcode" class="form-input" maxlength="5" placeholder="10240" inputmode="numeric" oninput="onRegPostcode()"></div><div class="form-group"><label class="form-label">จังหวัด</label><input type="text" id="regProvince" class="form-input" placeholder="จังหวัด"></div></div><div class="form-row"><div class="form-group"><label class="form-label">อำเภอ</label><input type="text" id="regAmphoe" class="form-input" placeholder="อำเภอ" list="dlAmphoe" oninput="onRegAmphoe()"></div><div class="form-group"><label class="form-label">ตำบล</label><input type="text" id="regTambon" class="form-input" placeholder="ตำบล" list="dlTambon"></div></div><datalist id="dlAmphoe"></datalist><datalist id="dlTambon"></datalist></div>
           <div class="form-group"><label class="form-label">เบอร์โทร</label><input type="tel" id="regPhone" class="form-input" placeholder="0812345678"></div>
           <div class="form-row">
             <div class="cond" data-if="enableIdCard"><div class="form-group"><label class="form-label">บัตร ปชช. 4 หลักท้าย</label><input type="text" id="regIdCard" class="form-input" maxlength="4" placeholder="1234"></div></div>
@@ -483,6 +483,7 @@
   </div>
 </div>
 
+<script src="thai-address.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
 <script>
 // ════════════════════════════════════════════════════════════════════════
@@ -1089,6 +1090,40 @@ function fetchNextMemberNo(silent) {
     }
   });
 }
+
+// [ADDR AUTOFILL v1.9.4] รหัสไปรษณีย์ 5 หลัก → เติมจังหวัด/อำเภอ + เสนอตำบลผ่าน datalist
+//   ใช้ window.THAI_ADDRESS (thai-address.js). ถ้าไฟล์ไม่ถูกโหลด → ไม่ทำอะไร กรอกเองได้ปกติ
+function _addrRowsForPostcode() {
+  var el = document.getElementById('regPostcode');
+  var pc = el ? String(el.value || '').replace(/\D/g, '').slice(0, 5) : '';
+  var db = (typeof window !== 'undefined') ? window.THAI_ADDRESS : null;
+  return (pc.length === 5 && db && db[pc]) ? db[pc] : null;
+}
+function _fillDatalist(id, arr) {
+  var e = document.getElementById(id);
+  if (!e) return;
+  e.innerHTML = (arr || []).map(function(v) { return '<option value="' + esc(v) + '"></option>'; }).join('');
+}
+function _setVal(id, v) { var e = document.getElementById(id); if (e) e.value = v; }
+function _uniq(arr) { var seen = {}, out = []; arr.forEach(function(v) { if (!seen[v]) { seen[v] = 1; out.push(v); } }); return out; }
+function _fillRegTambon() {
+  var rows = _addrRowsForPostcode();
+  if (!rows) { _fillDatalist('dlTambon', []); return; }
+  var amp = String((document.getElementById('regAmphoe') || {}).value || '').trim();
+  var tam = _uniq(rows.filter(function(r) { return !amp || r.a === amp; }).map(function(r) { return r.t; }));
+  _fillDatalist('dlTambon', tam);
+}
+function onRegPostcode() {
+  var rows = _addrRowsForPostcode();
+  if (!rows) return;                                  // ไม่พบรหัส/ไฟล์ไม่โหลด → ปล่อยให้กรอกเอง
+  var provs = _uniq(rows.map(function(r) { return r.p; }));
+  var amps  = _uniq(rows.map(function(r) { return r.a; }));
+  if (provs.length === 1) _setVal('regProvince', provs[0]);   // จังหวัดจากรหัสไปรษณีย์ = เดียวเสมอ
+  _fillDatalist('dlAmphoe', amps);
+  if (amps.length === 1) _setVal('regAmphoe', amps[0]);        // อำเภอเดียว → เติมให้เลย
+  _fillRegTambon();
+}
+function onRegAmphoe() { _fillRegTambon(); }                  // เปลี่ยนอำเภอ → กรองตำบลตามอำเภอ
 function _fillSelect(id, arr, placeholder) {
   var el = document.getElementById(id);
   if (!el || el.tagName !== 'SELECT') return;
