@@ -282,11 +282,31 @@
     </div>
 
     <!-- ═══════════ ถอนเงิน ═══════════ -->
+    <div id="withdrawSummaryPage" class="page hidden">
+      <div class="main">
+        <button class="back-btn" onclick="showPage('withdrawPage')">← กลับ</button>
+        <div class="card">
+          <div class="card-title">📋 สรุปถอนเงิน</div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <button id="wsDateBtn" onclick="wsToggleCal()" style="flex:1;height:44px;border:2px solid var(--border);border-radius:11px;background:#fff;font-size:15px;font-family:inherit;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">📅 <span id="wsDateLabel"></span> ▾</button>
+            <button onclick="wsToggleExport()" style="height:44px;border:none;border-radius:11px;background:var(--danger);color:#fff;font-weight:bold;font-size:14px;font-family:inherit;padding:0 14px;cursor:pointer">⬇ ส่งออก ▾</button>
+          </div>
+          <div id="wsCal" class="hidden" style="border:1px solid var(--border);border-radius:13px;box-shadow:0 8px 24px rgba(0,0,0,.10);background:#fff;padding:12px;margin-top:8px"></div>
+          <div id="wsExportMenu" class="hidden" style="display:flex;gap:8px;justify-content:flex-end;background:#fff;margin-top:8px;padding:2px">
+            <div onclick="wsExport('xlsx')" style="width:66px;border:1px solid var(--border);border-radius:11px;box-shadow:0 4px 14px rgba(0,0,0,.08);padding:9px 4px;text-align:center;cursor:pointer;background:#fff"><span style="font-size:22px;display:block;color:#15803d">📊</span><div style="font-size:12px;font-weight:bold;margin-top:3px">Excel</div></div>
+            <div onclick="wsExport('pdf')" style="width:66px;border:1px solid var(--border);border-radius:11px;box-shadow:0 4px 14px rgba(0,0,0,.08);padding:9px 4px;text-align:center;cursor:pointer;background:#fff"><span style="font-size:22px;display:block;color:#dc2626">📄</span><div style="font-size:12px;font-weight:bold;margin-top:3px">PDF</div></div>
+          </div>
+        </div>
+        <div id="wsContent"></div>
+      </div>
+    </div>
+
+    <!-- ═══════════ ถอนเงิน ═══════════ -->
     <div id="withdrawPage" class="page hidden">
       <div class="main">
         <button class="back-btn" onclick="showPage('homePage')">← กลับ</button>
         <div class="card">
-          <div class="card-title" style="justify-content:space-between"><span>💸 ถอนเงิน</span><button onclick="refreshWithdraw()" class="btn-refresh">🔄</button></div>
+          <div class="card-title" style="justify-content:space-between"><span>💸 ถอนเงิน</span><span style="display:flex;gap:6px;align-items:center"><button onclick="openWithdrawSummary()" class="btn-refresh" style="width:auto;padding:4px 10px;font-size:16px;font-weight:700;line-height:1">📋 สรุปถอนเงิน</button><button onclick="refreshWithdraw()" class="btn-refresh">🔄</button></span></div>
           <div class="search-box"><span class="search-icon">🔎</span><input type="text" id="withdrawSearch" placeholder="" data-ph-tpl="ค้นหา {idLabel}/ชื่อ..." oninput="searchMemberFor('withdraw')"></div>
           <div id="withdrawSearchResults"></div>
         </div>
@@ -759,6 +779,122 @@ function dsExport(fmt) {
   });
 }
 
+// [WITHDRAW SUMMARY v1.9.4] ── สรุปถอนเงินรายวัน (มิเรอร์ ds*) ──
+function openWithdrawSummary() {
+  var t = new Date();
+  APP.wsDate = t.getFullYear() + '-' + dsPad2(t.getMonth() + 1) + '-' + dsPad2(t.getDate());
+  APP.wsYM = { y: t.getFullYear(), m: t.getMonth() };
+  showPage('withdrawSummaryPage');
+}
+function wsAfterShow() {
+  document.getElementById('wsCal').classList.add('hidden');
+  document.getElementById('wsExportMenu').classList.add('hidden');
+  wsLoad(); wsLoadMonth();
+}
+function wsLoad() {
+  document.getElementById('wsDateLabel').textContent = dsFmtThai(APP.wsDate);
+  document.getElementById('wsContent').innerHTML = '<div style="padding:20px;text-align:center;color:#999">⏳ กำลังโหลด...</div>';
+  callServer('getWithdrawSummary', { date: APP.wsDate }, function(r) {
+    if (!r.success) { document.getElementById('wsContent').innerHTML = '<div style="padding:20px;color:#c00">โหลดไม่สำเร็จ</div>'; return; }
+    wsRender(r.data);
+  });
+}
+function wsRender(d) {
+  if (!d.classes || !d.classes.length) {
+    document.getElementById('wsContent').innerHTML = '<div style="padding:24px;text-align:center;color:#888">ไม่มีการถอนเงินในวันนี้</div>';
+    return;
+  }
+  var html = '';
+  d.classes.forEach(function(C) {
+    html += '<div style="border:1px solid #e5e7eb;border-radius:13px;overflow:hidden;margin-bottom:14px">';
+    html += '<div style="background:#fef2f2;padding:10px 14px;display:flex;justify-content:space-between;font-weight:bold;color:#b91c1c"><span>ชั้น ' + esc(C.label) + '</span><span style="font-size:12px;color:#6b7280;font-weight:normal">ถอน ' + C.count + ' คน</span></div>';
+    C.members.forEach(function(M) {
+      html += '<div style="padding:11px 14px;border-top:1px solid #fdeaea">';
+      html += '<div style="display:flex;justify-content:space-between"><span style="font-weight:bold">' + esc(M.fullName) + '</span><span style="font-size:12px;color:#6b7280">เลขที่ ' + esc(M.classNo || '-') + '</span></div>';
+      html += '<table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:5px">';
+      M.items.forEach(function(it) {
+        html += '<tr><td style="padding:3px 0;color:#6b7280;white-space:nowrap;width:52px">' + esc(it.time || '') + '</td><td style="padding:3px 6px">' + (esc(it.note || '') || '<span style="color:#cbd5e1">-</span>') + '</td><td style="text-align:right;width:96px;font-weight:bold;color:#dc2626">-฿' + (it.amount || 0).toFixed(2) + '</td></tr>';
+      });
+      html += '</table>';
+      html += '<div style="display:flex;justify-content:flex-end;font-size:13px;margin-top:5px;color:#b91c1c;font-weight:bold;border-top:1px dashed #e5e7eb;padding-top:5px"><span>รวม ฿' + (M.amount || 0).toFixed(2) + '</span></div>';
+      html += '</div>';
+    });
+    html += '<div style="display:flex;justify-content:space-between;background:#fef2f2;padding:10px 14px;font-weight:bold;color:#b91c1c;border-top:2px solid #fecaca"><span>รวมชั้น ' + esc(C.label) + '</span><span>฿' + (C.amount || 0).toFixed(2) + '</span></div>';
+    html += '</div>';
+  });
+  html += '<div style="background:linear-gradient(135deg,#ef4444,#b91c1c);color:#fff;border-radius:13px;padding:14px 16px;display:flex;justify-content:space-between;align-items:center"><div>รวมทั้งหมด<div style="font-size:12px;opacity:.85">' + d.grand.members + ' คน · ' + d.grand.count + ' รายการ</div></div><div style="text-align:right"><div style="font-size:20px;font-weight:bold">฿' + (d.grand.amount || 0).toFixed(2) + '</div></div></div>';
+  document.getElementById('wsContent').innerHTML = html;
+}
+function wsToggleCal() {
+  var c = document.getElementById('wsCal');
+  document.getElementById('wsExportMenu').classList.add('hidden');
+  if (c.classList.contains('hidden')) { wsRenderCal(); c.classList.remove('hidden'); } else c.classList.add('hidden');
+}
+function wsLoadMonth() {
+  var ym = APP.wsYM.y + '-' + dsPad2(APP.wsYM.m + 1);
+  callServer('getWithdrawDates', { month: ym }, function(r) {
+    APP.wsDays = (r.success && r.data) ? r.data : [];
+    if (!document.getElementById('wsCal').classList.contains('hidden')) wsRenderCal();
+  });
+}
+function wsCalNav(delta) {
+  var m = APP.wsYM.m + delta, y = APP.wsYM.y;
+  if (m < 0) { m = 11; y--; } if (m > 11) { m = 0; y++; }
+  APP.wsYM = { y: y, m: m }; APP.wsDays = [];
+  wsRenderCal(); wsLoadMonth();
+}
+function wsRenderCal() {
+  var y = APP.wsYM.y, m = APP.wsYM.m;
+  var first = new Date(y, m, 1).getDay();
+  var days = new Date(y, m + 1, 0).getDate();
+  var t = new Date(), todayStr = t.getFullYear() + '-' + dsPad2(t.getMonth() + 1) + '-' + dsPad2(t.getDate());
+  var has = {}; (APP.wsDays || []).forEach(function(dd) { has[dd] = true; });
+  var html = '<div style="display:flex;justify-content:space-between;align-items:center;font-weight:bold;margin-bottom:8px">' +
+    '<button onclick="wsCalNav(-1)" style="border:none;background:#fef2f2;color:#b91c1c;border-radius:8px;width:30px;height:30px;font-size:16px;cursor:pointer">‹</button>' +
+    '<span>' + DS_TMONTHF[m] + ' ' + (y + 543) + '</span>' +
+    '<button onclick="wsCalNav(1)" style="border:none;background:#fef2f2;color:#b91c1c;border-radius:8px;width:30px;height:30px;font-size:16px;cursor:pointer">›</button></div>';
+  html += '<table style="width:100%;border-collapse:collapse;text-align:center"><tr>';
+  ['อา','จ','อ','พ','พฤ','ศ','ส'].forEach(function(w) { html += '<th style="font-size:12px;color:#6b7280;font-weight:normal;padding:4px 0">' + w + '</th>'; });
+  html += '</tr><tr>';
+  for (var i = 0; i < first; i++) html += '<td></td>';
+  for (var dnum = 1; dnum <= days; dnum++) {
+    var ds = y + '-' + dsPad2(m + 1) + '-' + dsPad2(dnum);
+    var isSel = (ds === APP.wsDate), future = (ds > todayStr);
+    var st = 'width:34px;height:34px;line-height:34px;border-radius:50%;font-size:14px;margin:auto;position:relative;cursor:pointer;';
+    if (isSel) st += 'background:#dc2626;color:#fff;font-weight:bold;';
+    else if (future) st += 'color:#cbd5e1;cursor:default;';
+    else if (has[dnum]) st += 'color:#b91c1c;font-weight:bold;';
+    var dot = (has[dnum] && !isSel) ? '<span style="position:absolute;left:50%;bottom:3px;transform:translateX(-50%);width:5px;height:5px;border-radius:50%;background:#dc2626"></span>' : '';
+    var oc = future ? '' : ' onclick="wsPickDate(\'' + ds + '\')"';
+    html += '<td style="padding:2px"><div style="' + st + '"' + oc + '>' + dnum + dot + '</div></td>';
+    if ((first + dnum) % 7 === 0) html += '</tr><tr>';
+  }
+  html += '</tr></table>';
+  html += '<div style="font-size:12px;color:#6b7280;margin-top:8px"><span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#dc2626"></span> = วันที่มีการถอน</div>';
+  document.getElementById('wsCal').innerHTML = html;
+}
+function wsPickDate(ds) {
+  APP.wsDate = ds;
+  document.getElementById('wsCal').classList.add('hidden');
+  wsLoad();
+}
+function wsToggleExport() {
+  document.getElementById('wsCal').classList.add('hidden');
+  document.getElementById('wsExportMenu').classList.toggle('hidden');
+}
+function wsExport(fmt) {
+  document.getElementById('wsExportMenu').classList.add('hidden');
+  showToast('กำลังสร้างไฟล์...', 'success');
+  callServer('exportWithdrawSummary', { date: APP.wsDate, format: fmt, reporter: (APP.user && APP.user.displayName) || '' }, function(r) {
+    if (!r.success || !r.data || !r.data.ok) { showToast('ส่งออกไม่สำเร็จ', 'error'); return; }
+    var a = document.createElement('a');
+    a.href = 'data:' + r.data.mime + ';base64,' + r.data.b64;
+    a.download = r.data.fileName;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    showToast('ดาวน์โหลด ' + r.data.fileName, 'success');
+  });
+}
+
 function showPage(pageId) {
   var pages = document.querySelectorAll('.page');
   pages.forEach(function(p) { p.classList.add('hidden'); });
@@ -787,6 +923,7 @@ function showPage(pageId) {
   if (pageId === 'redeemPage') loadRewardsForRedeem();
   if (pageId === 'depositPage') { APP.depositItems = []; APP.currentMember = null; document.getElementById('depositForm').classList.add('hidden'); }
   if (pageId === 'depositSummaryPage') dsAfterShow();
+  if (pageId === 'withdrawSummaryPage') wsAfterShow();
   if (pageId === 'withdrawPage') { APP.currentMember = null; document.getElementById('withdrawForm').classList.add('hidden'); }
   if (pageId === 'redeemPage') { APP.currentMember = null; document.getElementById('redeemForm').classList.add('hidden'); }
   if (pageId === 'balancePage') document.getElementById('balanceDisplay').classList.add('hidden');
@@ -1144,7 +1281,7 @@ function searchMemberFor(context, force) {
   var room = roomEl ? roomEl.value : '';
   var scoped = !!(APP.scopeFilters && APP.scopeFilters.scoped);
   var hasFilter = !!(zone || room);
-  if (!force && query.length < 2 && !hasFilter) { document.getElementById(context + 'SearchResults').innerHTML = ''; return; }
+  if (!force && query.length < 2 && !hasFilter && !/^\d+$/.test(query)) { document.getElementById(context + 'SearchResults').innerHTML = ''; return; }
   // [v1.7.4] scoped: ไม่ส่ง "ระดับ" (ชื่อที่เดาขึ้น ไม่ตรงคอลัมน์ ZONE) ไป server — ใช้กรอง "ชั้น" ฝั่ง client แทน
   var sendZone = scoped ? '' : zone;
   var levelClasses = null;
@@ -1620,34 +1757,117 @@ function loadSellData() {
     callServer('getAllBuyers', {}, function(r2) {
       if (!r2.success) return;
       APP.buyers = r2.data;
-      var stockOptions = r1.data.map(function(s) { return '<option value="' + esc(s.wasteType) + '">' + esc(s.wasteType) + ' (' + s.totalWeight + ' กก.)</option>'; }).join('');
+      APP.saleStock = r1.data;
+      APP.saleStockMap = {};
+      r1.data.forEach(function(s) { APP.saleStockMap[s.wasteType] = s.totalWeight; });
+      APP.saleCart = [];
       var buyerOptions = r2.data.map(function(b) { return '<option value="' + esc(b.id) + '" data-name="' + esc(b.name) + '">' + esc(b.name) + '</option>'; }).join('');
       document.getElementById('sellForm').innerHTML =
-        '<div class="form-group"><label class="form-label">ประเภทขยะ</label><select id="sellWaste" class="form-select"><option value="">-- เลือก --</option>' + stockOptions + '</select></div>' +
-        '<div class="form-row"><div class="form-group"><label class="form-label">น้ำหนัก (กก.)</label><input type="number" id="sellWeight" class="form-input" step="0.01" min="0.01"></div>' +
-        '<div class="form-group"><label class="form-label">ราคาขาย/กก.</label><input type="number" id="sellPrice" class="form-input" step="0.01" min="0"></div></div>' +
+        '<div style="font-weight:700;margin-bottom:8px">เพิ่มรายการขาย</div>' +
+        '<div class="form-group"><label class="form-label">ประเภทขยะ · (คงเหลือในสต๊อก)</label><select id="sellWaste" class="form-select" onchange="sellValidate()"><option value="">-- เลือก --</option></select></div>' +
+        '<div class="form-row"><div class="form-group"><label class="form-label">น้ำหนัก (กก.)</label><input type="number" id="sellWeight" class="form-input" step="0.01" min="0.01" oninput="sellValidate()"></div>' +
+        '<div class="form-group"><label class="form-label">ราคาขาย/กก. (พิมพ์เอง)</label><input type="number" id="sellPrice" class="form-input" step="0.01" min="0" oninput="sellValidate()"></div></div>' +
+        '<div id="sellWarn" class="hidden" style="font-size:13px;color:#a32d2d;background:#fdecec;border-radius:9px;padding:8px 10px;margin-bottom:10px"></div>' +
+        '<button id="sellAddBtn" class="btn btn-primary" onclick="sellAddItem()" style="margin-bottom:14px">➕ เพิ่มรายการ</button>' +
+        '<div style="border-top:1px solid #eee;padding-top:12px"><div style="font-weight:700;margin-bottom:6px">รายการขาย <span id="sellCartCount" style="color:#888;font-weight:400;font-size:13px"></span></div>' +
+        '<div id="sellCartList"></div>' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;background:#e8f9ef;border-radius:11px;padding:12px;margin-top:10px"><div style="font-size:13px;color:#0f6e56">น้ำหนักรวม<br><span id="sellTotalWt" style="font-size:18px;font-weight:700;color:#08533f">0.00 กก.</span></div><div style="text-align:right;font-size:13px;color:#0f6e56">ราคารวม<br><span id="sellTotalAmt" style="font-size:22px;font-weight:700;color:#08533f">฿0.00</span></div></div></div>' +
+        '<div style="border-top:1px solid #eee;margin-top:14px;padding-top:12px"><div style="font-weight:700;margin-bottom:6px">ข้อมูลบิล (ใช้ร่วมทุกรายการ)</div>' +
         '<div class="form-group"><label class="form-label">ร้านรับซื้อ</label><select id="sellBuyer" class="form-select"><option value="">-- เลือก --</option>' + buyerOptions + '</select></div>' +
-        '<div class="form-group"><label class="form-label">หมายเหตุ</label><input type="text" id="sellNote" class="form-input" placeholder="หมายเหตุ"></div>' +
-        '<button class="btn btn-primary" onclick="processSale(this)">🛒 ขาย</button>';
+        '<div class="form-group"><label class="form-label">หมายเหตุ</label><input type="text" id="sellNote" class="form-input" placeholder="หมายเหตุ (ถ้ามี)"></div>' +
+        '<button id="sellSaveBtn" class="btn btn-primary" onclick="sellSubmit(this)">💾 บันทึกการขาย</button></div>';
+      sellRenderTypes(); sellRenderCart(); sellValidate();
     });
   });
 }
 
-function processSale(btn) {
-  var buyerSel = document.getElementById('sellBuyer');
-  var buyerName = buyerSel.options[buyerSel.selectedIndex] ? buyerSel.options[buyerSel.selectedIndex].getAttribute('data-name') : '';
-  var data = {
+// น้ำหนักของประเภทนี้ที่อยู่ในตะกร้าแล้ว (เพื่อหักจากสต๊อกคงเหลือ)
+function sellInCart(type) { return (APP.saleCart || []).reduce(function(s, it) { return s + (it.wasteName === type ? it.weight : 0); }, 0); }
+function sellRemaining(type) { return Math.round(((APP.saleStockMap[type] || 0) - sellInCart(type)) * 100) / 100; }
+function sellRenderTypes() {
+  var sel = document.getElementById('sellWaste'); if (!sel) return;
+  var cur = sel.value;
+  sel.innerHTML = '<option value="">-- เลือก --</option>' + (APP.saleStock || []).map(function(s) {
+    return '<option value="' + esc(s.wasteType) + '">' + esc(s.wasteType) + ' · (' + sellRemaining(s.wasteType).toFixed(2) + ' กก.)</option>';
+  }).join('');
+  if (cur && APP.saleStockMap[cur] !== undefined) sel.value = cur;
+}
+function sellRenderCart() {
+  var list = document.getElementById('sellCartList'); if (!list) return;
+  var cart = APP.saleCart || [];
+  if (!cart.length) { list.innerHTML = '<div style="text-align:center;color:#bbb;padding:16px;font-size:14px">ยังไม่มีรายการ</div>'; }
+  else {
+    list.innerHTML = cart.map(function(it, i) {
+      return '<div style="display:flex;align-items:center;gap:8px;padding:9px 0;border-top:1px solid #f1f1f1"><div style="flex:1"><div style="font-weight:700;font-size:14px">' + esc(it.wasteName) + '</div><div style="font-size:12px;color:#888">' + it.weight.toFixed(2) + ' กก. × ฿' + it.sellPrice + '/กก.</div></div>' +
+        '<div style="font-weight:700;color:#0f6e56;font-size:14px">฿' + (Math.round(it.weight * it.sellPrice * 100) / 100).toFixed(2) + '</div>' +
+        '<button onclick="sellRemoveItem(' + i + ')" class="btn-refresh" style="color:#f44336;width:auto;padding:2px 8px" aria-label="ลบ">🗑</button></div>';
+    }).join('');
+  }
+  var tw = cart.reduce(function(s, it) { return s + it.weight; }, 0);
+  var ta = cart.reduce(function(s, it) { return s + it.weight * it.sellPrice; }, 0);
+  document.getElementById('sellTotalWt').textContent = tw.toFixed(2) + ' กก.';
+  document.getElementById('sellTotalAmt').textContent = '฿' + (Math.round(ta * 100) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  document.getElementById('sellCartCount').textContent = cart.length ? '(' + cart.length + ' รายการ)' : '';
+}
+function sellValidate() {
+  var sel = document.getElementById('sellWaste'); if (!sel) return;
+  var t = sel.value, w = parseFloat(document.getElementById('sellWeight').value), p = parseFloat(document.getElementById('sellPrice').value);
+  var rem = sellRemaining(t), over = !!(t && w > rem);
+  var warn = document.getElementById('sellWarn');
+  if (over) { warn.classList.remove('hidden'); warn.innerHTML = '⚠️ น้ำหนักเกินสต๊อก! ' + esc(t) + ' คงเหลือ ' + rem.toFixed(2) + ' กก.'; }
+  else warn.classList.add('hidden');
+  var ok = !!(t && w > 0 && p > 0 && !over);
+  var btn = document.getElementById('sellAddBtn');
+  btn.disabled = !ok; btn.style.opacity = ok ? '1' : '.5'; btn.style.cursor = ok ? 'pointer' : 'not-allowed';
+}
+function sellAddItem() {
+  var btn = document.getElementById('sellAddBtn'); if (btn.disabled) return;
+  APP.saleCart.push({
     wasteName: document.getElementById('sellWaste').value,
     weight: parseFloat(document.getElementById('sellWeight').value),
-    sellPrice: parseFloat(document.getElementById('sellPrice').value),
-    buyerId: buyerSel.value, buyerName: buyerName,
-    note: document.getElementById('sellNote').value
-  };
-  if (!data.wasteName || !data.weight || data.sellPrice === undefined) { showToast('กรุณากรอกข้อมูลให้ครบ', 'error'); return; }
+    sellPrice: parseFloat(document.getElementById('sellPrice').value)
+  });
+  document.getElementById('sellWaste').value = '';
+  document.getElementById('sellWeight').value = '';
+  document.getElementById('sellPrice').value = '';
+  sellRenderTypes(); sellRenderCart(); sellValidate();
+}
+function sellRemoveItem(i) { APP.saleCart.splice(i, 1); sellRenderTypes(); sellRenderCart(); sellValidate(); }
+function sellSubmit(btn) {
+  var cart = APP.saleCart || [];
+  if (!cart.length) { showToast('ยังไม่มีรายการขาย', 'error'); return; }
+  var buyerSel = document.getElementById('sellBuyer');
+  var buyerId = buyerSel.value;
+  var buyerName = buyerSel.options[buyerSel.selectedIndex] ? buyerSel.options[buyerSel.selectedIndex].getAttribute('data-name') : '';
+  if (!buyerId) { showToast('กรุณาเลือกร้านรับซื้อ', 'error'); return; }
+  var note = document.getElementById('sellNote').value;
   btn.disabled = true;
-  callServer('processSale', data, function(r) {
-    setTimeout(function() { btn.disabled = false; }, 30000);
-    if (r.success) { showToast(r.message, 'success'); loadSellData(); } else { showToast(r.message, 'error'); btn.disabled = false; }
+  var queue = cart.slice(), ok = 0, failed = [];
+  showToast('กำลังบันทึก ' + queue.length + ' รายการ...', 'success');
+  function next() {
+    if (!queue.length) {
+      APP.saleCart = failed;
+      if (failed.length) showToast('บันทึกสำเร็จ ' + ok + ' · ไม่สำเร็จ ' + failed.length + ' รายการ (ค้างในตะกร้าให้กดซ้ำ)', 'error');
+      else showToast('บันทึกการขายสำเร็จ ' + ok + ' รายการ', 'success');
+      sellReloadStockKeepCart();
+      btn.disabled = false;
+      return;
+    }
+    var it = queue.shift();
+    callServer('processSale', { wasteName: it.wasteName, weight: it.weight, sellPrice: it.sellPrice, buyerId: buyerId, buyerName: buyerName, note: note }, function(r) {
+      if (r && r.success) ok++; else failed.push(it);
+      next();
+    });
+  }
+  next();
+}
+// โหลดสต๊อกใหม่หลังบันทึก แต่คงรายการที่ค้างในตะกร้าไว้ (ไม่รีเซ็ตเหมือน loadSellData)
+function sellReloadStockKeepCart() {
+  callServer('clearCacheKeys', { keys: ['inventory_map'] }, function() {
+    callServer('getAllStock', {}, function(r) {
+      if (r.success) { APP.saleStock = r.data; APP.saleStockMap = {}; r.data.forEach(function(s) { APP.saleStockMap[s.wasteType] = s.totalWeight; }); }
+      sellRenderTypes(); sellRenderCart(); sellValidate();
+    });
   });
 }
 
