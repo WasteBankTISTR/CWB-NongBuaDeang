@@ -369,12 +369,18 @@
         <button class="back-btn" onclick="showPage('updatePricePage')">← กลับ</button>
         <div class="card">
           <div class="card-title">📥 นำเข้าแคตตาล็อกขยะ</div>
-          <label class="form-label">ลิงก์แคตตาล็อกกลาง (Google Sheet)</label>
-          <div style="display:flex;gap:8px">
-            <input type="text" id="catUrl" class="form-input" placeholder="วางลิงก์ Google Sheet (แชร์ให้บัญชีสคริปต์แล้ว)">
-            <button onclick="catFetch(this)" style="height:44px;border:none;border-radius:11px;background:#185fa5;color:#fff;font-weight:700;font-size:14px;font-family:inherit;padding:0 14px;white-space:nowrap;cursor:pointer">ดึงรายการ</button>
+          <input type="hidden" id="catUrl">
+          <div style="font-size:12px;color:#888;margin-bottom:6px">แหล่งแคตตาล็อกกลาง</div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="width:34px;height:34px;border-radius:9px;background:#e8f4ea;color:#0f8a43;display:flex;align-items:center;justify-content:center;flex:none;font-size:18px">🗂️</span>
+            <div style="flex:1;min-width:0">
+              <div id="catName" style="font-weight:700;font-size:15px;color:#1a1a1a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">ฐานข้อมูลธนาคารขยะ</div>
+              <div style="font-size:12px;color:#0f8a43">✓ เชื่อมแล้ว</div>
+            </div>
+            <button onclick="catOpenChange()" style="border:1px solid var(--border);background:#fff;border-radius:9px;font-family:inherit;font-size:12px;padding:6px 10px;cursor:pointer;white-space:nowrap;color:#185fa5">เปลี่ยนลิงก์</button>
           </div>
-          <div id="catStatus" style="font-size:12px;margin-top:6px;color:#666">แชร์ชีตให้บัญชีที่รันสคริปต์เป็น Viewer ก่อน แล้ววางลิงก์ · ยึด PRODUCT_CODE เป็นมาตรฐาน</div>
+          <button onclick="catFetch(this)" style="width:100%;height:44px;margin-top:12px;border:none;border-radius:11px;background:#06c755;color:#fff;font-weight:700;font-size:15px;font-family:inherit;cursor:pointer">🔄 ดึงรายการจากแคตตาล็อก</button>
+          <div id="catStatus" style="font-size:12px;margin-top:8px;color:#666;text-align:center">ชี้ฐานข้อมูลไว้แล้ว — กดดึงรายการได้เลย</div>
           <div id="catChips" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;font-size:12px"></div>
           <div id="catTools" class="hidden" style="display:flex;gap:8px;margin-top:8px">
             <button onclick="catExpandAll(true)" style="flex:1;height:34px;border:1px solid var(--border);border-radius:9px;background:#fff;font-family:inherit;font-size:12px;cursor:pointer">กางทั้งหมด</button>
@@ -383,6 +389,19 @@
         </div>
         <div id="catList"></div>
         <button class="btn btn-primary hidden" id="catImportBtn" onclick="catImport(this)">📥 นำเข้า / ซิงก์</button>
+      </div>
+
+      <div id="catChangeModal" style="display:none;position:fixed;inset:0;background:rgba(20,25,30,.45);align-items:center;justify-content:center;padding:20px;z-index:9999">
+        <div style="background:#fff;border-radius:15px;width:100%;max-width:340px;padding:16px;box-shadow:0 18px 50px rgba(0,0,0,.3)">
+          <div style="font-weight:700;font-size:16px;color:#1a1a1a;margin-bottom:4px">เปลี่ยนลิงก์แคตตาล็อก</div>
+          <div style="font-size:12px;color:#888;margin-bottom:10px">วางลิงก์ Google Sheet กลางตัวใหม่</div>
+          <input type="text" id="catChangeInput" class="form-input" placeholder="วางลิงก์ที่นี่">
+          <div style="display:flex;align-items:flex-start;gap:6px;font-size:11px;color:#a06a12;background:#fdf6e8;border-radius:9px;padding:8px 10px;margin-top:10px">⚠️ <span>ต้องเป็น Google Sheet เนทีฟ และแชร์ให้บัญชีที่รันสคริปต์เป็น Viewer ก่อน</span></div>
+          <div style="display:flex;gap:8px;margin-top:14px">
+            <button onclick="catCancelChange()" style="flex:1;height:42px;border:1px solid var(--border);background:#fff;border-radius:11px;font-family:inherit;font-size:14px;cursor:pointer;color:#555">ยกเลิก</button>
+            <button onclick="catSaveChange()" style="flex:1;height:42px;border:none;background:#06c755;color:#fff;border-radius:11px;font-family:inherit;font-size:14px;font-weight:700;cursor:pointer">บันทึกลิงก์</button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -2604,8 +2623,21 @@ function refreshUpdatePrice() { callServer('clearCacheKeys',{keys:['prices_map']
 function openCatalogImport() { showPage('catalogImportPage'); }
 function catAfterShow() {
   callServer('getCatalogUrl', {}, function(r) {
-    if (r && r.ok && r.url && !document.getElementById('catUrl').value) document.getElementById('catUrl').value = r.url;
+    if (r && r.ok) {
+      if (r.url && !document.getElementById('catUrl').value) document.getElementById('catUrl').value = r.url;
+      if (r.name) document.getElementById('catName').textContent = r.name;
+    }
   });
+}
+function catOpenChange() {
+  document.getElementById('catChangeInput').value = document.getElementById('catUrl').value || '';
+  document.getElementById('catChangeModal').style.display = 'flex';
+}
+function catCancelChange() { document.getElementById('catChangeModal').style.display = 'none'; }
+function catSaveChange() {
+  var v = document.getElementById('catChangeInput').value.trim();
+  document.getElementById('catChangeModal').style.display = 'none';
+  if (v) { document.getElementById('catUrl').value = v; catFetch(); }   // ดึงด้วยลิงก์ใหม่ (backend เก็บลง System_Config ให้เอง)
 }
 function catFetch(btn) {
   var url = document.getElementById('catUrl').value.trim();
