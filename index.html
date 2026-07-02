@@ -356,10 +356,33 @@
       <div class="main">
         <button class="back-btn" onclick="showPage('homePage')">← กลับ</button>
         <div class="card">
-          <div class="card-title" style="justify-content:space-between"><span>✏️ แก้ไขราคา</span><button onclick="refreshUpdatePrice()" class="btn-refresh">🔄</button></div>
+          <div class="card-title" style="justify-content:space-between"><span>✏️ แก้ไขราคา</span><span style="display:flex;gap:6px;align-items:center"><button onclick="openCatalogImport()" class="btn-refresh" style="width:auto;padding:4px 10px;font-size:14px;font-weight:700;line-height:1">📥 นำเข้าแคตตาล็อก</button><button onclick="refreshUpdatePrice()" class="btn-refresh">🔄</button></span></div>
           <div id="updatePriceList" class="loading"><div class="spinner"></div></div>
           <button class="btn btn-primary hidden" id="savePricesBtn" onclick="saveMultiplePrices(this)">💾 บันทึกราคาทั้งหมด</button>
         </div>
+      </div>
+    </div>
+
+    <!-- ═══════════ นำเข้าแคตตาล็อกขยะ ═══════════ -->
+    <div id="catalogImportPage" class="page hidden">
+      <div class="main">
+        <button class="back-btn" onclick="showPage('updatePricePage')">← กลับ</button>
+        <div class="card">
+          <div class="card-title">📥 นำเข้าแคตตาล็อกขยะ</div>
+          <label class="form-label">ลิงก์แคตตาล็อกกลาง (Google Sheet)</label>
+          <div style="display:flex;gap:8px">
+            <input type="text" id="catUrl" class="form-input" placeholder="วางลิงก์ Google Sheet (แชร์ให้บัญชีสคริปต์แล้ว)">
+            <button onclick="catFetch(this)" style="height:44px;border:none;border-radius:11px;background:#185fa5;color:#fff;font-weight:700;font-size:14px;font-family:inherit;padding:0 14px;white-space:nowrap;cursor:pointer">ดึงรายการ</button>
+          </div>
+          <div id="catStatus" style="font-size:12px;margin-top:6px;color:#666">แชร์ชีตให้บัญชีที่รันสคริปต์เป็น Viewer ก่อน แล้ววางลิงก์ · ยึด PRODUCT_CODE เป็นมาตรฐาน</div>
+          <div id="catChips" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;font-size:12px"></div>
+          <div id="catTools" class="hidden" style="display:flex;gap:8px;margin-top:8px">
+            <button onclick="catExpandAll(true)" style="flex:1;height:34px;border:1px solid var(--border);border-radius:9px;background:#fff;font-family:inherit;font-size:12px;cursor:pointer">กางทั้งหมด</button>
+            <button onclick="catExpandAll(false)" style="flex:1;height:34px;border:1px solid var(--border);border-radius:9px;background:#fff;font-family:inherit;font-size:12px;cursor:pointer">พับทั้งหมด</button>
+          </div>
+        </div>
+        <div id="catList"></div>
+        <button class="btn btn-primary hidden" id="catImportBtn" onclick="catImport(this)">📥 นำเข้า / ซิงก์</button>
       </div>
     </div>
 
@@ -688,13 +711,14 @@ function dsRender(d) {
     document.getElementById('dsContent').innerHTML = '<div style="padding:24px;text-align:center;color:#888">ไม่มีการฝากขยะในวันนี้</div>';
     return;
   }
+  var gw = esc(d.groupWord || 'ชั้น'), nw = esc(d.noWord || 'เลขที่');
   var html = '';
   d.classes.forEach(function(C) {
     html += '<div style="border:1px solid #e5e7eb;border-radius:13px;overflow:hidden;margin-bottom:14px">';
-    html += '<div style="background:#eef6f0;padding:10px 14px;display:flex;justify-content:space-between;font-weight:bold;color:#15803d"><span>ชั้น ' + esc(C.label) + '</span><span style="font-size:12px;color:#6b7280;font-weight:normal">ฝาก ' + C.count + ' คน</span></div>';
+    html += '<div style="background:#eef6f0;padding:10px 14px;display:flex;justify-content:space-between;font-weight:bold;color:#15803d"><span>' + gw + ' ' + esc(C.label) + '</span><span style="font-size:12px;color:#6b7280;font-weight:normal">ฝาก ' + C.count + ' คน</span></div>';
     C.members.forEach(function(M) {
       html += '<div style="padding:11px 14px;border-top:1px solid #f1f5f0">';
-      html += '<div style="display:flex;justify-content:space-between"><span style="font-weight:bold">' + esc(M.fullName) + '</span><span style="font-size:12px;color:#6b7280">เลขที่ ' + esc(M.classNo || '-') + '</span></div>';
+      html += '<div style="display:flex;justify-content:space-between"><span style="font-weight:bold">' + esc(M.fullName) + '</span><span style="font-size:12px;color:#6b7280">' + nw + ' ' + esc(M.classNo || '-') + '</span></div>';
       html += '<table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:5px">';
       M.items.forEach(function(it) {
         html += '<tr><td style="padding:3px 0">' + esc(it.wasteType) + '</td><td style="text-align:right;color:#6b7280;white-space:nowrap">฿' + (it.price || 0) + '/กก.</td><td style="text-align:right;width:82px">' + (it.weight || 0).toFixed(2) + ' กก.</td><td style="text-align:right;width:84px;font-weight:bold">฿' + (it.amount || 0).toFixed(2) + '</td></tr>';
@@ -703,7 +727,7 @@ function dsRender(d) {
       html += '<div style="display:flex;justify-content:flex-end;gap:16px;font-size:13px;margin-top:5px;color:#15803d;font-weight:bold;border-top:1px dashed #e5e7eb;padding-top:5px"><span>รวม ' + (M.weight || 0).toFixed(2) + ' กก.</span><span>฿' + (M.amount || 0).toFixed(2) + '</span></div>';
       html += '</div>';
     });
-    html += '<div style="display:flex;justify-content:space-between;background:#f0fdf4;padding:10px 14px;font-weight:bold;color:#15803d;border-top:2px solid #bbf7d0"><span>รวมชั้น ' + esc(C.label) + '</span><span style="display:flex;gap:18px"><span>' + (C.weight || 0).toFixed(2) + ' กก.</span><span>฿' + (C.amount || 0).toFixed(2) + '</span></span></div>';
+    html += '<div style="display:flex;justify-content:space-between;background:#f0fdf4;padding:10px 14px;font-weight:bold;color:#15803d;border-top:2px solid #bbf7d0"><span>รวม' + gw + ' ' + esc(C.label) + '</span><span style="display:flex;gap:18px"><span>' + (C.weight || 0).toFixed(2) + ' กก.</span><span>฿' + (C.amount || 0).toFixed(2) + '</span></span></div>';
     html += '</div>';
   });
   html += '<div style="background:linear-gradient(135deg,#16a34a,#15803d);color:#fff;border-radius:13px;padding:14px 16px;display:flex;justify-content:space-between;align-items:center"><div>รวมทั้งหมด<div style="font-size:12px;opacity:.85">' + d.grand.members + ' คน · ' + d.grand.items + ' รายการ</div></div><div style="text-align:right"><div style="font-size:20px;font-weight:bold">฿' + (d.grand.amount || 0).toFixed(2) + '</div><div style="font-size:13px;opacity:.9">' + (d.grand.weight || 0).toFixed(2) + ' กก.</div></div></div>';
@@ -804,13 +828,14 @@ function wsRender(d) {
     document.getElementById('wsContent').innerHTML = '<div style="padding:24px;text-align:center;color:#888">ไม่มีการถอนเงินในวันนี้</div>';
     return;
   }
+  var gw = esc(d.groupWord || 'ชั้น'), nw = esc(d.noWord || 'เลขที่');
   var html = '';
   d.classes.forEach(function(C) {
     html += '<div style="border:1px solid #e5e7eb;border-radius:13px;overflow:hidden;margin-bottom:14px">';
-    html += '<div style="background:#fef2f2;padding:10px 14px;display:flex;justify-content:space-between;font-weight:bold;color:#b91c1c"><span>ชั้น ' + esc(C.label) + '</span><span style="font-size:12px;color:#6b7280;font-weight:normal">ถอน ' + C.count + ' คน</span></div>';
+    html += '<div style="background:#fef2f2;padding:10px 14px;display:flex;justify-content:space-between;font-weight:bold;color:#b91c1c"><span>' + gw + ' ' + esc(C.label) + '</span><span style="font-size:12px;color:#6b7280;font-weight:normal">ถอน ' + C.count + ' คน</span></div>';
     C.members.forEach(function(M) {
       html += '<div style="padding:11px 14px;border-top:1px solid #fdeaea">';
-      html += '<div style="display:flex;justify-content:space-between"><span style="font-weight:bold">' + esc(M.fullName) + '</span><span style="font-size:12px;color:#6b7280">เลขที่ ' + esc(M.classNo || '-') + '</span></div>';
+      html += '<div style="display:flex;justify-content:space-between"><span style="font-weight:bold">' + esc(M.fullName) + '</span><span style="font-size:12px;color:#6b7280">' + nw + ' ' + esc(M.classNo || '-') + '</span></div>';
       html += '<table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:5px">';
       M.items.forEach(function(it) {
         html += '<tr><td style="padding:3px 0;color:#6b7280;white-space:nowrap;width:52px">' + esc(it.time || '') + '</td><td style="padding:3px 6px">' + (esc(it.note || '') || '<span style="color:#cbd5e1">-</span>') + '</td><td style="text-align:right;width:96px;font-weight:bold;color:#dc2626">-฿' + (it.amount || 0).toFixed(2) + '</td></tr>';
@@ -819,7 +844,7 @@ function wsRender(d) {
       html += '<div style="display:flex;justify-content:flex-end;font-size:13px;margin-top:5px;color:#b91c1c;font-weight:bold;border-top:1px dashed #e5e7eb;padding-top:5px"><span>รวม ฿' + (M.amount || 0).toFixed(2) + '</span></div>';
       html += '</div>';
     });
-    html += '<div style="display:flex;justify-content:space-between;background:#fef2f2;padding:10px 14px;font-weight:bold;color:#b91c1c;border-top:2px solid #fecaca"><span>รวมชั้น ' + esc(C.label) + '</span><span>฿' + (C.amount || 0).toFixed(2) + '</span></div>';
+    html += '<div style="display:flex;justify-content:space-between;background:#fef2f2;padding:10px 14px;font-weight:bold;color:#b91c1c;border-top:2px solid #fecaca"><span>รวม' + gw + ' ' + esc(C.label) + '</span><span>฿' + (C.amount || 0).toFixed(2) + '</span></div>';
     html += '</div>';
   });
   html += '<div style="background:linear-gradient(135deg,#ef4444,#b91c1c);color:#fff;border-radius:13px;padding:14px 16px;display:flex;justify-content:space-between;align-items:center"><div>รวมทั้งหมด<div style="font-size:12px;opacity:.85">' + d.grand.members + ' คน · ' + d.grand.count + ' รายการ</div></div><div style="text-align:right"><div style="font-size:20px;font-weight:bold">฿' + (d.grand.amount || 0).toFixed(2) + '</div></div></div>';
@@ -910,6 +935,7 @@ function showPage(pageId) {
   if (pageId === 'registerPage') loadZones();
   if (pageId === 'pricesPage') loadPrices();
   if (pageId === 'updatePricePage') loadPricesForUpdate();
+  if (pageId === 'catalogImportPage') catAfterShow();
   if (pageId === 'stockPage') loadStock();
   if (pageId === 'sellPage') loadSellData();
   if (pageId === 'buyerPage') loadBuyers();
@@ -2573,6 +2599,100 @@ function refreshWithdraw() { callServer('clearCacheKeys',{keys:['members_data','
 function refreshRedeem() { callServer('clearCacheKeys',{keys:['members_data','balance_map','rewards_data']},function(){document.getElementById('redeemForm').classList.add('hidden');loadRewardsForRedeem();showToast('โหลดใหม่แล้ว','success');}); }
 function refreshPrices() { callServer('clearCacheKeys',{keys:['prices_map']},function(){loadPrices();}); }
 function refreshUpdatePrice() { callServer('clearCacheKeys',{keys:['prices_map']},function(){loadPricesForUpdate();}); }
+
+// [CATALOG IMPORT v1.9.4] นำเข้าประเภทขยะจากแคตตาล็อกกลาง (จัดกลุ่มตามหมวด · ป้ายสถานะสด)
+function openCatalogImport() { showPage('catalogImportPage'); }
+function catAfterShow() {
+  callServer('getCatalogUrl', {}, function(r) {
+    if (r && r.ok && r.url && !document.getElementById('catUrl').value) document.getElementById('catUrl').value = r.url;
+  });
+}
+function catFetch(btn) {
+  var url = document.getElementById('catUrl').value.trim();
+  var st = document.getElementById('catStatus');
+  st.style.color = '#666'; st.textContent = '⏳ กำลังดึงรายการ...';
+  if (btn) btn.disabled = true;
+  callServer('fetchCatalog', { url: url }, function(r) {
+    if (btn) btn.disabled = false;
+    if (!r || !r.ok) { st.style.color = '#c00'; st.textContent = '❌ ' + ((r && r.error) || 'ดึงไม่สำเร็จ'); return; }
+    st.style.color = '#0f6e56'; st.textContent = '✅ พบ ' + r.count + ' รายการ · ยึด PRODUCT_CODE เป็นมาตรฐาน';
+    APP.catItems = r.items || [];
+    APP.catOpen = {};
+    if (APP.catItems.length) APP.catOpen[APP.catItems[0].category || 'ไม่ระบุหมวด'] = true;
+    document.getElementById('catTools').classList.remove('hidden');
+    document.getElementById('catImportBtn').classList.remove('hidden');
+    catRender();
+  });
+}
+function catGroups() {
+  var g = {}, order = [];
+  (APP.catItems || []).forEach(function(it) { var c = it.category || 'ไม่ระบุหมวด'; if (!g[c]) { g[c] = []; order.push(c); } g[c].push(it); });
+  return order.map(function(c) { return { name: c, items: g[c] }; });
+}
+function catBadge(it) {
+  if (it.inSystem && !it.sel) return ['#fcebeb', '#a32d2d', 'จะปิด'];
+  if (!it.inSystem && it.sel) return ['#e8f9ef', '#0f6e56', 'เพิ่มใหม่'];
+  if (it.inSystem && it.sel && it.metaChanged) return ['#faf0da', '#854f0b', 'อัปเดต'];
+  if (it.inSystem && it.sel) return ['#eceae2', '#555', 'มีในระบบ'];
+  return ['#eef1f4', '#8894a0', 'ไม่รับ'];
+}
+function catRender() {
+  var root = document.getElementById('catList');
+  root.innerHTML = catGroups().map(function(G) {
+    var selN = G.items.filter(function(x) { return x.sel; }).length, tot = G.items.length;
+    var isOpen = !!APP.catOpen[G.name];
+    var head = '<div class="catHead" data-c="' + esc(G.name) + '" style="display:flex;align-items:center;gap:10px;padding:11px 12px;cursor:pointer">' +
+      '<div style="flex:1;min-width:0"><div style="font-weight:700;font-size:15px">' + esc(G.name) + '</div><div style="font-size:12px;color:#888">เลือก ' + selN + '/' + tot + ' ชนิด</div></div>' +
+      '<label style="display:flex;align-items:center;gap:5px;font-size:12px;color:#0f6e56" onclick="event.stopPropagation()"><input type="checkbox" class="catAll" data-c="' + esc(G.name) + '" ' + (selN === tot ? 'checked' : '') + ' style="width:17px;height:17px;accent-color:#06c755">ทั้งหมด</label>' +
+      '<span style="color:#aaa">' + (isOpen ? '▾' : '▸') + '</span></div>';
+    var body = '';
+    if (isOpen) {
+      body = '<div style="padding:0 12px 8px">' + G.items.map(function(it) {
+        var b = catBadge(it), idx = APP.catItems.indexOf(it);
+        return '<div style="display:flex;gap:10px;align-items:flex-start;padding:9px 0;border-top:1px solid #f1f1f1">' +
+          '<input type="checkbox" class="catCk" data-i="' + idx + '" ' + (it.sel ? 'checked' : '') + ' style="width:19px;height:19px;margin-top:2px;accent-color:#06c755;flex:none">' +
+          '<div style="flex:1;min-width:0">' +
+            '<div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><span style="font-weight:700;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(it.name) + '</span><span style="background:' + b[0] + ';color:' + b[1] + ';font-size:11px;padding:2px 8px;border-radius:7px;white-space:nowrap;flex:none">' + b[2] + '</span></div>' +
+            '<div style="font-size:11px;color:#999;margin-top:1px">' + esc(it.code) + ' · CO₂ ' + (parseFloat(it.multiply) || 0) + ' · ' + esc(it.unit || 'กก.') + '</div>' +
+            '<div style="display:flex;align-items:center;gap:6px;margin-top:6px"><span style="font-size:12px;color:#666">ราคา</span><input type="number" class="catPr" data-i="' + idx + '" value="' + (it.price || '') + '" placeholder="0.00" ' + (it.sel ? '' : 'disabled') + ' style="width:80px;height:31px;border:1px solid #e0e0e0;border-radius:9px;padding:0 8px;font-family:inherit;font-size:13px;' + (it.sel ? '' : 'background:#f4f4f4') + '"><span style="font-size:12px;color:#666">บาท/กก.</span></div>' +
+          '</div></div>';
+      }).join('') + '</div>';
+    }
+    return '<div class="card" style="padding:0;margin-bottom:9px;overflow:hidden">' + head + body + '</div>';
+  }).join('');
+  root.querySelectorAll('.catHead').forEach(function(h) { h.addEventListener('click', function() { var c = h.getAttribute('data-c'); APP.catOpen[c] = !APP.catOpen[c]; catRender(); }); });
+  root.querySelectorAll('.catAll').forEach(function(c) { c.addEventListener('change', function() { var name = c.getAttribute('data-c'); (APP.catItems || []).forEach(function(it) { if ((it.category || 'ไม่ระบุหมวด') === name) it.sel = c.checked; }); catRender(); }); });
+  root.querySelectorAll('.catCk').forEach(function(c) { c.addEventListener('change', function() { APP.catItems[+c.getAttribute('data-i')].sel = c.checked; catRender(); }); });
+  root.querySelectorAll('.catPr').forEach(function(p) { p.addEventListener('input', function() { APP.catItems[+p.getAttribute('data-i')].price = parseFloat(p.value) || 0; }); });
+  catChips();
+}
+function catChips() {
+  var all = APP.catItems || [];
+  var add = all.filter(function(x) { return !x.inSystem && x.sel; }).length;
+  var upd = all.filter(function(x) { return x.inSystem && x.sel && x.metaChanged; }).length;
+  var off = all.filter(function(x) { return x.inSystem && !x.sel; }).length;
+  var sel = all.filter(function(x) { return x.sel; }).length;
+  var chips = [['เลือกรับซื้อ ' + sel, '#e8f9ef', '#0f6e56'], ['เพิ่มใหม่ ' + add, '#e8f9ef', '#0f6e56'], ['อัปเดต ' + upd, '#faf0da', '#854f0b'], ['จะปิด ' + off, '#fcebeb', '#a32d2d']];
+  document.getElementById('catChips').innerHTML = chips.map(function(c) { return '<span style="background:' + c[1] + ';color:' + c[2] + ';padding:3px 10px;border-radius:8px">' + c[0] + '</span>'; }).join('');
+  document.getElementById('catImportBtn').textContent = '📥 นำเข้า / ซิงก์ (' + sel + ' ชนิด)';
+}
+function catExpandAll(open) {
+  APP.catOpen = {};
+  if (open) catGroups().forEach(function(G) { APP.catOpen[G.name] = true; });
+  catRender();
+}
+function catImport(btn) {
+  var all = APP.catItems || [];
+  if (!all.length) { showToast('ยังไม่มีรายการ', 'error'); return; }
+  btn.disabled = true;
+  showToast('กำลังนำเข้า...', 'success');
+  callServer('importCatalog', { items: all }, function(r) {
+    btn.disabled = false;
+    if (!r || !r.ok) { showToast((r && r.error) || 'นำเข้าไม่สำเร็จ', 'error'); return; }
+    showToast('นำเข้าสำเร็จ · เพิ่ม ' + r.added + ' · อัปเดต ' + r.updated + ' · ปิด ' + r.disabled, 'success');
+    catFetch();
+  });
+}
 function refreshStock() { callServer('clearCacheKeys',{keys:['inventory_map']},function(){loadStock();}); }
 function refreshSell() { callServer('clearCacheKeys',{keys:['inventory_map']},function(){loadSellData();}); }
 function refreshBuyers() { loadBuyers(); }
